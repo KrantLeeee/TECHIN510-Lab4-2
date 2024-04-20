@@ -4,9 +4,13 @@ import streamlit as st
 from supabase import create_client, Client
 
 # Load environment variables
-load_dotenv() 
+load_dotenv()
 
-# Define the query and filter functions
+# Connect to Supabase
+supabase_url = os.getenv('MY_SUPABASE_URL')
+supabase_key = os.getenv('MY_SUPABASE_KEY')
+supabase: Client = create_client(supabase_url, supabase_key)
+
 def search_by_name(name):
     query = supabase.table('books').select('*').ilike('title', f'%{name}%').execute()
     return query.data
@@ -15,8 +19,9 @@ def search_by_description(description):
     query = supabase.table('books').select('*').ilike('description', f'%{description}%').execute()
     return query.data
 
-def filter_and_order_by_rating(rating):
-    query = supabase.table('books').select('*').gte('rating', rating).order('rating', desc=True).execute()
+def filter_by_rating(rating):
+    rating_map = {'One': 1, 'Two': 2, 'Three': 3, 'Four': 4, 'Five': 5}
+    query = supabase.table('books').select('*').eq('rating', rating_map[rating]).execute()
     return query.data
 
 def filter_and_order_by_price(price):
@@ -26,6 +31,11 @@ def filter_and_order_by_price(price):
 # Create the Streamlit app
 def main():
     st.title("Book Data Query and Filter App")
+
+    # Environment check (For debugging, remove in production)
+    if not supabase_url or not supabase_key:
+        st.error("Supabase credentials are not set in the environment variables.")
+        return
 
     with st.form("Search by Name"):
         name = st.text_input("Enter a book name to search:")
@@ -41,11 +51,10 @@ def main():
             result = search_by_description(description)
             st.write(result)
 
-    with st.form("Filter by Rating"):
-        rating = st.slider("Choose a minimum rating:", min_value=0, max_value=5, step=0.1, value=3.0)
-        submitted = st.form_submit_button("Filter")
-        if submitted:
-            result = filter_and_order_by_rating(rating)
+    with st.expander("Filter by Rating"):
+        rating = st.selectbox("Choose a rating:", ['One', 'Two', 'Three', 'Four', 'Five'])
+        if st.button("Filter Ratings"):
+            result = filter_by_rating(rating)
             st.write(result)
 
     with st.form("Filter by Price"):
@@ -56,4 +65,5 @@ def main():
             st.write(result)
 
 if __name__ == "__main__":
+    
     main()
