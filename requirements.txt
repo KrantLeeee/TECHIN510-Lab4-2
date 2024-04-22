@@ -3,5 +3,4 @@ beautifulsoup4
 streamlit
 psycopg2-binary
 python-dotenv
-supabase-py
 supabase

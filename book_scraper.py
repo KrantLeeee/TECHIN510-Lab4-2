@@ -46,6 +46,16 @@ while True:
         book['price'] = book_div.select_one('p.price_color').text.replace('Â', '').strip()
         book['rating'] = book_div.select_one('p.star-rating')['class'][1]
 
+        # Convert rating from words to numbers
+        rating_conversion = {
+            'Five': '5',
+            'Four': '4',
+            'Three': '3',
+            'Two': '2',
+            'One': '1'
+        }
+        book['rating'] = rating_conversion.get(book['rating'], '0')  # Default to '0' if not found
+
         # Insert book data into the database
         books.append(book)
         db.insert_book(book)

@@ -1,69 +1,53 @@
-import os
-from dotenv import load_dotenv
 import streamlit as st
-from supabase import create_client, Client
+from dotenv import load_dotenv
+import os
+import pandas as pd
+from database import Database
 
-# Load environment variables
 load_dotenv()
 
-# Connect to Supabase
-supabase_url = os.getenv('MY_SUPABASE_URL')
-supabase_key = os.getenv('MY_SUPABASE_KEY')
-supabase: Client = create_client(supabase_url, supabase_key)
+def fetch_data(search_query='', filter_by=None, order_by=None, order_direction='ASC'):
+    with Database(os.getenv('supabaseURL')) as db:
+        query = "SELECT * FROM books WHERE "
+        query_conditions = []
 
-def search_by_name(name):
-    query = supabase.table('books').select('*').ilike('title', f'%{name}%').execute()
-    return query.data
+        if search_query:
+            query_conditions.append("(title ILIKE %s OR description ILIKE %s)")
+        
+        if filter_by and filter_by in ['rating', 'price']:
+            query_conditions.append(f"{filter_by} IS NOT NULL")
+        
+        final_query = query + (" AND ".join(query_conditions) if query_conditions else "TRUE")
 
-def search_by_description(description):
-    query = supabase.table('books').select('*').ilike('description', f'%{description}%').execute()
-    return query.data
+        if order_by:
+            final_query += f" ORDER BY {order_by} {order_direction}"
 
-def filter_by_rating(rating):
-    rating_map = {'One': 1, 'Two': 2, 'Three': 3, 'Four': 4, 'Five': 5}
-    query = supabase.table('books').select('*').eq('rating', rating_map[rating]).execute()
-    return query.data
+        params = [f'%{search_query}%', f'%{search_query}%'] if search_query else []
+        df = pd.read_sql(final_query, db.con, params=params)
+        return df
 
-def filter_and_order_by_price(price):
-    query = supabase.table('books').select('*').lte('price', price).order('price', ascending=True).execute()
-    return query.data
-
-# Create the Streamlit app
 def main():
-    st.title("Book Data Query and Filter App")
+    st.title('Book Data Query and Filter App')
 
-    # Environment check (For debugging, remove in production)
-    if not supabase_url or not supabase_key:
-        st.error("Supabase credentials are not set in the environment variables.")
-        return
+    search_query = st.text_input("Search by book name or description")
+    filter_option = st.selectbox("Filter by:", options=['None', 'rating', 'price'], index=0)
+    order_option = st.selectbox("Order by:", options=['ASC', 'DESC'], index=0)
 
-    with st.form("Search by Name"):
-        name = st.text_input("Enter a book name to search:")
-        submitted = st.form_submit_button("Search")
-        if submitted and name:
-            result = search_by_name(name)
-            st.write(result)
-
-    with st.form("Search by Description"):
-        description = st.text_input("Enter description keywords:")
-        submitted = st.form_submit_button("Search")
-        if submitted and description:
-            result = search_by_description(description)
-            st.write(result)
-
-    with st.expander("Filter by Rating"):
-        rating = st.selectbox("Choose a rating:", ['One', 'Two', 'Three', 'Four', 'Five'])
-        if st.button("Filter Ratings"):
-            result = filter_by_rating(rating)
-            st.write(result)
-
-    with st.form("Filter by Price"):
-        price = st.slider("Set maximum price:", min_value=0, max_value=1000, step=10, value=100)
-        submitted = st.form_submit_button("Filter")
-        if submitted:
-            result = filter_and_order_by_price(price)
-            st.write(result)
+    if st.button("Search/Fetch Data"):
+        if not search_query and filter_option == 'None':
+            st.warning("Please enter a search term or choose a filter option.")
+            return
+        
+        df = fetch_data(search_query, 
+                        filter_by=(filter_option if filter_option != 'None' else None),
+                        order_by='price' if filter_option == 'price' else 'rating',  
+                        order_direction=order_option.lower())
+        
+        if df.empty:
+            st.write("No results found.")
+        else:
+            st.write("Results:")
+            st.dataframe(df, width=700)
 
 if __name__ == "__main__":
-    
     main()

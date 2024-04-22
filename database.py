@@ -6,6 +6,16 @@ class Database:
         self.con = psycopg2.connect(database_url)
         self.cur = self.con.cursor()
 
+    def __enter__(self):
+        return self  # This method allows the class to be used in a 'with' statement.
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.cur.close()  # Corrected to use the right attribute name for the cursor
+        self.con.close()  # Corrected to use the right attribute name for the connection
+        # Handle exceptions if necessary
+        if exc_type:
+            raise
+
     def create_table(self):
         q = """
         CREATE TABLE IF NOT EXISTS books (
